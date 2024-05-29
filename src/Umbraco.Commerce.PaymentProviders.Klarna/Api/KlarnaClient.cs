@@ -1,8 +1,8 @@
-using Flurl.Http;
-using Flurl.Http.Newtonsoft;
-using Newtonsoft.Json;
+﻿using Flurl.Http;
 using System;
 using System.IO;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
 using Umbraco.Commerce.PaymentProviders.Klarna.Api.Models;
@@ -20,6 +20,10 @@ namespace Umbraco.Commerce.PaymentProviders.Klarna.Api
         public const string OcPlaygroundApiUrl = "https://api-oc.playground.klarna.com";
 
         private KlarnaClientConfig _config;
+        private static readonly JsonSerializerOptions DefaultJsonOptions = new JsonSerializerOptions(JsonSerializerDefaults.Web)
+        {
+            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+        };
 
         public KlarnaClient(KlarnaClientConfig config)
         {
@@ -73,28 +77,17 @@ namespace Umbraco.Commerce.PaymentProviders.Klarna.Api
 
         public KlarnaSessionEvent ParseSessionEvent(Stream stream)
         {
-            var serializer = new JsonSerializer();
-
             if (stream.CanSeek)
             {
                 stream.Seek(0, 0);
             }
 
-            using (var sr = new StreamReader(stream))
-            using (var jsonTextReader = new JsonTextReader(sr))
-            {
-                return serializer.Deserialize<KlarnaSessionEvent>(jsonTextReader);
-            }
+            return JsonSerializer.Deserialize<KlarnaSessionEvent>(stream, DefaultJsonOptions);
         }
 
         private async Task<TResult> RequestAsync<TResult>(string url, Func<IFlurlRequest, CancellationToken, Task<TResult>> func, CancellationToken cancellationToken = default)
         {
             var req = new FlurlRequest(_config.BaseUrl + url)
-                .WithSettings(x => x.JsonSerializer = new NewtonsoftJsonSerializer(new JsonSerializerSettings
-                {
-                    NullValueHandling = NullValueHandling.Ignore,
-                    ObjectCreationHandling = ObjectCreationHandling.Replace,
-                })) 
                 .WithHeader("Cache-Control", "no-cache")
                 .WithBasicAuth(_config.Username, _config.Password);
 
